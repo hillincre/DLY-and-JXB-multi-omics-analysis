@@ -1,0 +1,265 @@
+---
+title: Figure 4 Functional differences of gut microbiota between the JXB (Jiaxing
+  Black) and DLY (Duroc × Landrace × Yorkshire) pigs (N = 5 for each group).
+author: "Liang Huang"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# Clean workspace
+rm(list=ls()) 
+# Set output directory
+output_dir="./"
+```
+
+
+#a LEfSe analysis
+
+(A) LEfSe analysis for dominant KEGG (Kyoto Encyclopedia of Genes and Genomes) Ontology in each breed.
+This figure is drawn by Majorbio (Shanghai, China)
+
+#b Heatmap
+
+(B) Heatmap shows different reads count of KO in NOD-like receptor signaling pathway and Glycerolipid metabolism, * indicates significant changes at p < 0.05 by Mann-Whitney test. 
+This figure were drawn by using Graph Pad.
+
+
+#c Column 
+
+(C) Column plot shows reads count of KO involved in Metabolic pathways.
+This figure is drawn by Majorbio (Shanghai, China)
+
+#d WGCNA
+
+(D) Correlations between species and modules, two values exist in each cells represent correlation coefficient (top) and p value (bottom).
+
+```{r}
+library(xlsx)
+file="./DEGs expression_KO.xlsx"
+exprmat.quantiles=read.xlsx(file,header = T,1,row.names=2)
+exprmat.quantiles=exprmat.quantiles[,c(9:18)]
+
+group=read.xlsx(file,header = T,2,row.names=1)
+trait=read.xlsx(file,header = T,3,row.names=1)
+
+
+library(WGCNA)
+enableWGCNAThreads(6)
+options(stringsAsFactors = FALSE);
+
+dat0=exprmat.quantiles
+
+
+Exp <- factor(group$group)
+design <- model.matrix(~ 0+Exp)
+
+datSummary=dat0[,1];
+
+dim(dat0) 
+
+
+datExpr = t(dat0[,1: ncol(dat0)]);
+dim(datExpr)
+
+ArrayName= names(data.frame(dat0)) 
+
+GeneName= dat0[,1]
+
+names(datExpr)=dat0[,1]
+
+y=design[,2]
+
+
+setwd("./WGCNA") 
+#####WGCNA#####
+
+powers=c(seq(1,10,by=1),seq(12,16,by=2));
+
+sft=pickSoftThreshold(datExpr, powerVector=powers,networkType = "signed")
+
+
+sizeGrWindow(9, 5); 
+
+pdf('choosing power.pdf');
+
+par(mfrow = c(1,1)); 
+
+cex1 = 0.9;
+
+plot(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2],
+     
+     xlab="Soft Threshold (power)",ylab="Scale Free Topology Model Fit,signed R^2",type="n",main = paste("Scale independence")); 
+
+text(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2],labels=powers,cex=cex1,col="red");
+
+abline(h=0.90,col="red"); 
+
+dev.off() 
+
+
+sizeGrWindow(9, 5);
+
+pdf('mean connectivity.pdf');
+
+plot(sft$fitIndices[,1], sft$fitIndices[,5],xlab="Soft Threshold (power)",ylab="Mean Connectivity", type="n",main = paste("Mean connectivity"))
+
+text(sft$fitIndices[,1], sft$fitIndices[,5], labels=powers, cex=cex1,col="red");
+
+dev.off()
+
+
+
+#####WGCNA#####
+
+softPower =16
+
+Connectivity=softConnectivity(datExpr,corFnc = "cor", corOptions = "use ='p'",power=softPower,type = "signed")
+
+pdf("scale-free.pdf");
+
+scaleFreePlot(Connectivity,nBreaks = 10,truncated = FALSE,removeFirst = FALSE, main = "");
+
+dev.off()
+
+adjacency = adjacency(datExpr,corFnc = "cor", corOptions = "use ='p'",type = "signed", power = softPower)
+
+TOM = TOMsimilarity(adjacency,TOMType="signed");
+
+dissTOM = 1-TOM
+
+geneTree = hclust(as.dist(dissTOM), method = "average")
+
+minModuleSize =10; 
+
+dynamicMods = cutreeDynamic(dendro = geneTree, distM = dissTOM,deepSplit = 4, pamRespectsDendro = FALSE,minClusterSize = minModuleSize,cutHeight=0.99); #deepSplit = 0-4
+
+table(dynamicMods)
+
+dynamicColors = labels2colors(dynamicMods)
+
+table(dynamicColors)
+
+MEList = moduleEigengenes(datExpr, colors = dynamicMods) #colors = dynamicColors
+
+MEs = MEList$eigengenes
+
+MEDiss = 1-cor(MEs);
+
+METree = hclust(as.dist(MEDiss), method = "average");
+
+
+
+
+#####multi trait-module cor#####
+file="../DEGs expression_KO.xlsx"
+allTraits = read.xlsx(file,header = T,3,row.names=1)
+allTraits=allTraits[,c(4:13)]
+allTraits=t(allTraits)
+femaleSamples=rownames(datExpr);
+
+
+#traitRows = match(femaleSamples, allTraits$arrayname);
+
+traitRows=match(femaleSamples, names(allTraits))
+
+datTraits = allTraits[,1:9];
+order=match(rownames(MEs),rownames(datTraits))
+datTraits=datTraits[order,]
+nGenes = ncol(datExpr);
+
+nSamples = nrow(datExpr);
+
+moduleTraitCor = WGCNA::cor(MEs[names(MEs)!="ME0"], datTraits, use = "p");
+
+moduleTraitPvalue = corPvalueStudent(moduleTraitCor, nSamples);
+
+sizeGrWindow(10,6)
+
+# Will display correlations and their p-values
+
+textMatrix = paste(signif(moduleTraitCor, 9), "\n(",
+                   
+                   signif(moduleTraitPvalue, 1), ")", sep = "");
+
+dim(textMatrix) = dim(moduleTraitCor)
+
+par(mar = c(6, 8.5, 3, 3));
+
+# Display the correlation values within a heatmap plot
+
+labeledHeatmap(Matrix = moduleTraitCor,#moduleTraitCor
+               
+
+               xLabels =colnames(datTraits), 
+               
+               yLabels = names(MEs[names(MEs)!="ME0"]),
+               
+               ySymbols = names(MEs[names(MEs)!="ME0"]),
+               
+               colorLabels = FALSE,
+               
+               colors = blueWhiteRed(50),
+               
+               textMatrix =textMatrix,
+               
+               setStdMargins = FALSE,
+               
+               cex.text = 1,
+               
+               zlim = c(-1,1),
+               
+               main = paste("Module-trait relationships"))
+
+
+
+out2=data.frame(data.frame(moduleTraitCor,moduleTraitPvalue))
+
+write.table(out2, file="trait-module relationship.csv", row.names=TRUE, col.names = TRUE, sep=",")
+
+
+
+
+
+
+
+
+#####automatic finish the Cytoscape mods#####
+
+probes = dat0[,1]
+
+n=length(unique(moduleColors)[unique(moduleColors)!=0])
+
+pb <- txtProgressBar(min = 0, max = n, style = 3)#添加进度条
+
+for (p in 1:n) { modules=unique(moduleColors)[unique(moduleColors)!=0][p]
+
+inModule = is.finite(match(moduleColors,modules));
+
+modProbes = probes[inModule];
+
+modTOM = TOM[inModule, inModule];
+
+dimnames(modTOM) = list(modProbes, modProbes)
+
+cyt = exportNetworkToCytoscape(modTOM,
+                               
+                               edgeFile = paste("CytoscapeInput-edges-", paste(modules, collapse="-"), ".txt", sep=""),
+                               
+                               nodeFile = paste("CytoscapeInput-nodes-", paste(modules, collapse="-"), ".txt", sep=""),
+                               
+                               weighted = TRUE,threshold = quantile(abs(modTOM),probs=0.8,nodeNames = modProbes ,nodeAttr = moduleColors[inModule]))
+
+#threshold can be replaced by quantile(abs(modTOM),probs=0.8)
+
+setTxtProgressBar(pb, p)}
+
+close(pb)
+
+```
+
+#e Network
+
+(E) Network shows key driver of modules, gradient color and size of nodes represent degree (edge count of genes), red indicates high degree and blue indicates low degree.
+This figure were drawn by using Cytoscape.

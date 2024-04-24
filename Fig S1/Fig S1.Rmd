@@ -1,0 +1,294 @@
+---
+title: Figure S1 ARGs (Antibiotic resistance genes) differ between the two pig breeds
+  (N = 5 for each group).
+author: "Liang Huang"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# Clean workspace
+rm(list=ls()) 
+# Set output directory
+output_dir="./"
+```
+
+#a and b Alpha diversity
+
+(A) Alpha diversity of ARGs compared by Shannon and (B) Simpson indices. 
+
+```{r}
+library(phyloseq)
+library(vegan)
+library(xlsx)
+file="./ARGs DATA.xlsx"
+meta=read.xlsx(file,1,header=T,row.names=1)
+meta=meta[,c(1:10)]
+meta=t(meta)
+meta=as.data.frame(meta)
+group=read.xlsx(file,2,header=T,row.names=1)
+
+
+
+shannon <- diversity(meta, index = "shannon")
+shannon=as.data.frame(shannon)
+df <- data.frame(shannon, Group = group$group)
+write.xlsx(df,"./alpha_shannon.xlsx")
+
+
+simpson <- diversity(meta, index = "simpson")
+simpson=as.data.frame(simpson)
+df <- data.frame(simpson, Group = group$group)
+write.xlsx(df,"./alpha_simpson.xlsx")
+
+# This figure is manually drawn by Graph Pad using data above.
+```
+
+#c PCoA
+
+(C) PCoA analysis showed differential beta diversity between the two groups.
+
+```{r}
+library(vegan)
+meta_dist=vegdist(meta,method="bray",binary = F)
+meta_pcoa=cmdscale(meta_dist,k=3,eig = T)
+
+meta_pcoa_points=as.data.frame(meta_pcoa$points)
+sum_eig=sum(meta_pcoa$eig)
+eig_percent=round(meta_pcoa$eig/sum_eig*100)
+colnames(meta_pcoa_points)=paste0("PCoA",1:3)
+meta_pcoa_result=cbind(meta_pcoa_points,group)
+head(meta_pcoa_result)
+
+library(ggplot2)
+Fig1C=ggplot(meta_pcoa_result,aes(x=PCoA1,y=PCoA2,color=group))+
+       labs(x=paste("PCoA1(",eig_percent[1],"%)",sep = ""),
+            y=paste("PCoA2(",eig_percent[2],"%)",sep = ""))+
+  scale_color_manual(values=c("DLY"="#4e62ab","JXB"="#d6404e"))+
+         geom_point(size=4) + stat_ellipse(level=0.95)+
+         theme_classic()+
+  theme(axis.title = element_text(size = 32),
+        axis.text = element_text(size = 24),
+        legend.title = element_blank(),
+        legend.position = c(0.95,0.95))
+```
+
+#d Stack diagram
+
+(D) Stack diagram displaying the top 10 antibiotic types in each pig. * with red indicates up-regulated genes in the JXB group, * with blue indicates down-regulated genes.
+This figure was drawn by using Graph Pad.
+
+#e and f Co-occurance network
+
+(E) The co-occurrence networks among ARGs in the DLY and (F) in the JXB. Red and blue edges represent positive and negative correlations, respectively, between nodes.
+
+```{r}
+library(ggClusterNet)
+library(phyloseq)
+library(tidyverse)
+library(igraph)
+library(sna)
+library(network)
+library(xlsx)
+
+file="./ARGs DATA.xlsx"
+
+
+#########Co-occurance in JXB pig########
+otutable <- read.xlsx(file,3,header=T,row.names=1)
+metadata <- read.xlsx(file,4,header=T,row.names=1)
+
+taxnomoy <- read.xlsx(file,1,header=T,row.names=1)
+
+otutable <- otutable[rowSums(otutable) != 0, ]
+
+taxnomoy <- taxnomoy[rownames(otutable), ]
+taxnomoy <- taxnomoy[,1]
+taxnomoy=as.data.frame(taxnomoy)
+rownames(taxnomoy)=rownames(otutable)
+colnames(taxnomoy)[1]="Phylum"
+
+ps <- phyloseq(tax_table(as.matrix(taxnomoy)),otu_table(as.matrix(otutable),taxa_are_rows = T),sample_data(metadata))
+
+
+
+path = "./JXB"
+dir.create(path)
+map = sample_data(ps)
+map$Group = "one"
+sample_data(ps) = map
+result = network.2(ps = ps,
+                   N = 100,
+                   big = F,#是否大于300
+                   maxnode = 5,
+                   select_layout = TRUE,
+                   layout_net = "model_igraph",
+                   r.threshold=0.4,
+                   p.threshold=0.05,
+                   label = FALSE,
+                   path = path,
+                   zipi = FALSE)
+
+# 多组网络绘制到一个面板
+p = result[[1]]
+# 全部样本网络参数比对
+data = result[[2]]
+num= 3
+# plotname1 = paste(path,"/network_all.jpg",sep = "")
+# ggsave(plotname1, p,width = 16*num,height = 16,dpi = 72)
+
+plotname1 = paste(path,"/network_JXB.pdf",sep = "")
+ggsave(plotname1, p,width = 16*num,height = 16,limitsize = FALSE)
+
+tablename <- paste(path,"/co-occurrence_JXB_net",".csv",sep = "")
+write.csv(data,tablename)
+
+
+
+#########Co-occurance in DLY pig########
+otutable <- read.xlsx(file,5,header=T,row.names=1)
+metadata <- read.xlsx(file,6,header=T,row.names=1)
+
+taxnomoy <- read.xlsx(file,1,header=T,row.names=1)
+
+otutable <- otutable[rowSums(otutable) != 0, ]
+
+taxnomoy <- taxnomoy[rownames(otutable), ]
+taxnomoy <- taxnomoy[,1]
+taxnomoy=as.data.frame(taxnomoy)
+rownames(taxnomoy)=rownames(otutable)
+colnames(taxnomoy)[1]="Phylum"
+
+ps <- phyloseq(tax_table(as.matrix(taxnomoy)),otu_table(as.matrix(otutable),taxa_are_rows = T),sample_data(metadata))
+
+
+
+path = "./DLY"
+dir.create(path)
+map = sample_data(ps)
+map$Group = "one"
+sample_data(ps) = map
+result = network.2(ps = ps,
+                   N = 100,
+                   big = F,#是否大于300
+                   maxnode = 5,
+                   select_layout = TRUE,
+                   layout_net = "model_igraph",
+                   r.threshold=0.4,
+                   p.threshold=0.05,
+                   label = FALSE,
+                   path = path,
+                   zipi = FALSE)
+
+# 多组网络绘制到一个面板
+p = result[[1]]
+# 全部样本网络参数比对
+data = result[[2]]
+num= 3
+# plotname1 = paste(path,"/network_all.jpg",sep = "")
+# ggsave(plotname1, p,width = 16*num,height = 16,dpi = 72)
+
+plotname1 = paste(path,"/network_DLY.pdf",sep = "")
+ggsave(plotname1, p,width = 16*num,height = 16,limitsize = FALSE)
+
+tablename <- paste(path,"/co-occurrence_DLY_net",".csv",sep = "")
+write.csv(data,tablename)
+```
+These figures were finally drawn by using Cytoscape.
+
+
+#g and h 
+
+(G) Random forest filtered the top 30 most important antibiotic types in the two pig breeds and (H) the ROC. 
+
+```{r}
+BiocManager::install("pROC")
+library(randomForest)
+library(caret)
+library(pROC)
+library(xlsx)
+file="./ARGs DATA.xlsx"
+df=read.xlsx(file,2,header=T,row.names=1)
+dim(df)
+
+#将数据随机分为训练集和测试集
+trainlist=createDataPartition(df$group,p=0.6,list = F)#0.6表示提取60%的数据用于训练模型
+trainset=df[trainlist,]
+testset=df[-trainlist,]
+
+#1.build model，使用训练集构建模型
+set.seed(123)
+rf.train=randomForest(as.factor(group)~.,data=trainset,importance=T,na.action = na.pass)
+rf.train
+plot(rf.train,main="randomforest origin")
+
+
+set=importance(rf.train)
+varImpPlot(rf.train)
+write.xlsx(set,"./top30 importance microbiota.xlsx")
+
+#2.测试集数据预测
+set.seed(456)
+rf.test=predict(rf.train,newdata = testset,type = "class")
+rf.test
+
+rf.cf=caret::confusionMatrix(as.factor(rf.test),as.factor(testset$group))
+
+#3.ROC,AUC
+rf.test2=predict(rf.train,newdata = testset,type="prob")
+
+roc.rf=multiclass.roc(testset$group, rf.test2)
+
+roc.rf_1=multiclass.roc(testset$group, rf.test2[,1])
+
+
+plot(roc.rf_1$rocs[[1]],col="blue")
+plot(roc.rf_1$rocs[[2]],add=T,col="red")
+auc(roc.rf_1)
+
+```
+
+#i Heatmap
+
+(H) The ROC and (I) abundance heatmap of these genes are shown.
+
+```{r}
+library(pheatmap)
+library(xlsx)
+file = "./Top 30.xlsx"
+data=read.xlsx(file,1,header=T,row.names=1)
+
+Groups=read.xlsx(file,2,header=T,row.names=1)
+Groups$group <- factor(Groups$group, levels = unique(Groups$group))
+
+data=na.omit(data)
+data <- data[apply(data, 1, function(row) !all(row == 0)), ]
+
+library(pheatmap)
+p=pheatmap(data,
+         cluster_rows=T,
+         clustering_method = "complete",
+         cluster_cols = F,
+         border_color = NA,
+         #cellwidth = 15, cellheight = 15,
+         #clustering_distance_rows = "eulidean",
+         #clustering_method = "complete",
+         #cutree_rows = "2",
+         annotation_col = Groups,
+         legend = TRUE,
+         #legend_breaks = unique(Groups$Group),
+         #legend_labels = unique(Groups$Group),
+         annotation_names_col = T,
+         labels_col = colnames(data),
+         annotation_legend = T,
+         show_rownames = T,
+         fontsize_row = 8,
+         show_colnames = T,
+         #fontsize_col=10,
+         angle_col = 0,
+         #main = "",
+         scale="row",
+         color = colorRampPalette(c("#5596e0","#ffffff","#FF0000"))(100))
+```
+

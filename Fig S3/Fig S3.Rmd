@@ -1,0 +1,77 @@
+---
+title: "Figure S3 Differential host gene-gut microbiota interactions between two pig
+  breeds (N = 5 for each gene or microbe set)."
+author: "Liang Huang"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# Clean workspace
+rm(list=ls()) 
+# Set output directory
+output_dir="./"
+```
+
+#a Venn diagram and network
+
+(A) Venn diagram show the number of differentially expressed genes that interact with microbes (absolute coefficient > 0.4, p < 0.05). Network diagram on the left shows genes that only interact with microbes in DLY and their interacting microbes, and network on the right shows genes that only presented in JXB. Network under the Venn diagram shows genes that are present in both groups and their different interacting microbes.
+
+```{r}
+library(ggvenn)
+library(tidyverse)
+library(ggtext)
+
+file="./data for overlap.xlsx"
+
+library(xlsx)
+JXB=read.xlsx(file,1,header = T)
+DLY=read.xlsx(file,2,header = T)
+
+list=list("JXB"=JXB$Gene.ensemble.ID, "DLY"=DLY$Gene.ensemble.ID)
+
+venn=ggvenn(list,show_percentage = F,show_elements = F,label_sep = ",",
+         digits = 1,stroke_color = "white",
+         fill_color = c("#1E90FF","#E41A1C"),
+         set_name_size = 4,
+         set_name_color = c("#1E90FF","#E41A1C"),
+         text_size = 6)
+venn
+print(venn)
+intersection=intersect(DLY$Gene.ensemble.ID,JXB$Gene.ensemble.ID)
+result <- data.frame(Intersection = intersection)
+write.xlsx(result, file = "./gene_intersection.xlsx")
+```
+The network of this figure was drawn by using Cytoscape.
+
+#b Venn diagram and network
+
+(B) Venn diagram shows counts of differential microbes that interact with microbes (absolute coefficient >0.4, p < 0.05). Network diagram on the left shows microbes that only interact with host genes in DLY and their interacting genes (top 20 ranked by the absolute value of the Spearman correlation coefficient). Network on the right shows microbes that are only present in JXB. Network under the Venn diagram shows microbes that are present in both groups and their different interacting genes.
+
+```{r}
+library(ggvenn)
+library(tidyverse)
+library(ggtext)
+library(xlsx)
+
+file="./data for overlap.xlsx"
+JXB=read.xlsx(file,3,header = T)
+DLY=read.xlsx(file,4,header = T)
+
+list=list("JXB"=JXB$Microbes..phylum., "DLY"=DLY$Microbes..phylum.)
+
+venn=ggvenn(list,show_percentage = F,show_elements = F,label_sep = ",",
+         digits = 1,stroke_color = "white",
+         fill_color = c("#1E90FF","#E41A1C"),
+         set_name_size = 4,
+         set_name_color = c("#1E90FF","#E41A1C"),
+         text_size = 6)
+venn
+print(venn)
+intersection=intersect(DLY$Microbes..phylum.,JXB$Microbes..phylum.)
+result <- data.frame(Intersection = intersection)
+write.xlsx(result, file = "./microbe_intersection.xlsx")
+```
+The network of this figure was drawn by using Cytoscape.
+
