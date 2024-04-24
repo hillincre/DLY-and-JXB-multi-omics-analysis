@@ -212,30 +212,32 @@ file="./ARGs DATA.xlsx"
 df=read.xlsx(file,2,header=T,row.names=1)
 dim(df)
 
-#将数据随机分为训练集和测试集
-trainlist=createDataPartition(df$group,p=0.6,list = F)#0.6表示提取60%的数据用于训练模型
+trainlist=createDataPartition(df$group, p=0.6,list = F)
 trainset=df[trainlist,]
 testset=df[-trainlist,]
 
-#1.build model，使用训练集构建模型
+
+
+#####1.build model
 set.seed(123)
 rf.train=randomForest(as.factor(group)~.,data=trainset,importance=T,na.action = na.pass)
 rf.train
 plot(rf.train,main="randomforest origin")
-
-
 set=importance(rf.train)
 varImpPlot(rf.train)
 write.xlsx(set,"./top30 importance microbiota.xlsx")
 
-#2.测试集数据预测
+
+#####2.test prediction
 set.seed(456)
 rf.test=predict(rf.train,newdata = testset,type = "class")
 rf.test
 
 rf.cf=caret::confusionMatrix(as.factor(rf.test),as.factor(testset$group))
+rf.cf
 
-#3.ROC,AUC
+
+#####3.plot ROC
 rf.test2=predict(rf.train,newdata = testset,type="prob")
 
 roc.rf=multiclass.roc(testset$group, rf.test2)
